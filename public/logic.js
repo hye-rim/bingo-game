@@ -66,12 +66,15 @@ function call(st, who, num) {
   return { num, lines: st.lines.slice(), winner: st.winner, newLines: [st.lines[0] - before[0], st.lines[1] - before[1]] };
 }
 
-// 컴퓨터가 고를 숫자. level: 'easy' 는 아무거나, 'hard' 는 내 판에서 줄이 가장 빨리 완성될 칸의 숫자를 고른다
-// (상대 판은 모르니 내 판만 본다)
+// 컴퓨터가 고를 숫자 (상대 판은 모르니 내 판만 본다)
+// level: 'easy' 는 아무거나, 'best' 는 늘 내 판에서 줄이 가장 빨리 완성될 칸의 숫자(사람이 낼 수 있는 가장 좋은 요령),
+//        'hard' 는 SKILL 확률로만 그렇게 하고 나머지는 아무거나 (사람이 이길 만하게 일부러 덜 정확하게)
+const SKILL = 0.6;
 function aiPick(st, who, level, rand = st.rand) {
   const cand = uncalled(st);
   if (!cand.length) return null;
-  if (level !== 'hard') return cand[Math.floor(rand() * cand.length)];
+  const smart = level === 'best' || (level === 'hard' && rand() < SKILL);
+  if (!smart) return cand[Math.floor(rand() * cand.length)];
   const board = st.boards[who], marks = st.marks[who];
   const W = [0, 1, 3, 9, 27, 81];                      // 한 줄에 이미 지워진 칸이 많을수록 그 줄을 완성하는 숫자가 값지다
   let best = [], bs = -1;
@@ -84,6 +87,6 @@ function aiPick(st, who, level, rand = st.rand) {
   return best[Math.floor(rand() * best.length)];
 }
 
-return { SIZE, N, TARGET, LINES, rng, randomBoard, validBoard, doneLines, newGame, uncalled, call, aiPick };
+return { SIZE, N, TARGET, SKILL, LINES, rng, randomBoard, validBoard, doneLines, newGame, uncalled, call, aiPick };
 })();
 if (typeof module !== 'undefined') module.exports = LOGIC_BINGO;

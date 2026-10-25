@@ -138,21 +138,44 @@ test('ai picks only numbers that are still free', () => {
   assert.strictEqual(L.aiPick(st, 0, 'hard'), null);
 });
 
-test('hard ai prefers the number that fills a nearly complete line', () => {
+test('the best ai prefers the number that fills a nearly complete line', () => {
   const st = L.newGame({ boards: [identity, reversed], first: 0 });
   for (const c of [0, 1, 2, 3]) st.marks[0][c] = true;             // 첫 줄에서 4칸이 이미 지워짐 (숫자 5 만 남음)
   st.called = [1, 2, 3, 4];
-  for (let i = 0; i < 20; i++) assert.strictEqual(L.aiPick(st, 0, 'hard', Math.random), 5);
+  for (let i = 0; i < 20; i++) assert.strictEqual(L.aiPick(st, 0, 'best', Math.random), 5);
+  assert.strictEqual(L.aiPick(st, 0, 'hard', () => 0.1), 5, 'hard plays it when it is in a careful mood');
 });
 
-test('hard ai beats easy ai most of the time (about equal turns, random boards)', () => {
-  let hard = 0;
-  const games = 600;
+test('hard ai is only careful some of the time, so it sometimes plays a random number', () => {
+  const st = L.newGame({ boards: [identity, reversed], first: 0 });
+  for (const c of [0, 1, 2, 3]) st.marks[0][c] = true;
+  st.called = [1, 2, 3, 4];
+  assert.ok(L.SKILL > 0.4 && L.SKILL < 0.9);
+  let careful = 0;
+  const n = 4000, rand = (() => { let a = 99; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; })();
+  for (let i = 0; i < n; i++) if (L.aiPick(st, 0, 'hard', rand) === 5) careful++;
+  assert.ok(Math.abs(careful / n - (L.SKILL + (1 - L.SKILL) / 21)) < 0.04, 'careful share ' + careful / n);
+});
+
+function playMatch(levelFor, games) {
+  let firstSideWins = 0;
   for (let s = 1; s <= games; s++) {
     const st = L.newGame({ seed: s, first: s % 2 });
-    const level = s % 2 ? ['easy', 'hard'] : ['hard', 'easy'];       // 먼저 하는 쪽을 번갈아 둔다
-    while (st.winner < 0) L.call(st, st.turn, L.aiPick(st, st.turn, level[st.turn]));
-    if (level[st.winner] === 'hard') hard++;
+    const lv = s % 2 ? [levelFor[0], levelFor[1]] : [levelFor[1], levelFor[0]];   // 먼저 하는 쪽을 번갈아 둔다
+    const rand = L.rng(s * 13 + 5);
+    while (st.winner < 0) L.call(st, st.turn, L.aiPick(st, st.turn, lv[st.turn], rand));
+    if (lv[st.winner] === levelFor[0]) firstSideWins++;
   }
-  assert.ok(hard / games > 0.55, 'hard won ' + hard + ' of ' + games);
+  return firstSideWins / games;
+}
+
+test('hard beats easy by a wide margin', () => {
+  const r = playMatch(['hard', 'easy'], 800);
+  assert.ok(r > 0.75 && r < 0.95, 'hard won ' + r);
+});
+
+test('hard can be beaten: the best play wins most games against it but not all', () => {
+  const r = playMatch(['best', 'hard'], 800);
+  assert.ok(r > 0.6, 'best play should be ahead, got ' + r);
+  assert.ok(r < 0.92, 'but hard must win some, best won ' + r);
 });
